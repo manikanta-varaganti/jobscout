@@ -54,15 +54,45 @@ type rpcResp struct {
 	Error   *rpcErr         `json:"error,omitempty"`
 }
 
-// Serve reads requests from in and writes responses to out until in is closed or ctx is done.
+// Serve reads requests from in and writes responses to out until in is closed (returns nil, or the
+// read error) or ctx is cancelled (returns nil: a requested stop is not a failure).
+//
+// Lines are read in a goroutine so cancellation is noticed even while no input is arriving; a plain
+// bufio.Scanner loop only checks ctx after Scan returns, so Ctrl+C would be ignored until the next
+// message. The reader goroutine may stay blocked in in.Read after Serve returns (a blocked read cannot
+// be interrupted portably); the process is about to exit, so this is harmless.
 func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 1<<20), 16<<20)
-	for sc.Scan() {
-		if ctx.Err() != nil {
-			return ctx.Err()
+	lines := make(chan string)
+	readErr := make(chan error, 1)
+	go func() {
+		defer close(lines)
+		sc := bufio.NewScanner(in)
+		sc.Buffer(make([]byte, 1<<20), 16<<20)
+		for sc.Scan() {
+			select {
+			case lines <- sc.Text():
+			case <-ctx.Done():
+				return
+			}
 		}
-		line := strings.TrimSpace(sc.Text())
+		readErr <- sc.Err()
+	}()
+	for {
+		var line string
+		select {
+		case <-ctx.Done():
+			return nil
+		case l, ok := <-lines:
+			if !ok {
+				select {
+				case err := <-readErr:
+					return err
+				default:
+					return nil
+				}
+			}
+			line = strings.TrimSpace(l)
+		}
 		if line == "" {
 			continue
 		}
@@ -80,7 +110,6 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 			return err
 		}
 	}
-	return sc.Err()
 }
 
 func (s *Server) write(out io.Writer, r rpcResp) error {

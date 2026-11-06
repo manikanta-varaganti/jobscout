@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/manikanta-varaganti/jobscout/internal/domain"
 	"github.com/manikanta-varaganti/jobscout/internal/scrape"
@@ -135,5 +137,88 @@ func TestResourcesAndSavedSearches(t *testing.T) {
 	}
 	if !strings.Contains(text(res[6]), `"slug": "palantir"`) {
 		t.Errorf("add_board: %s", text(res[6]))
+	}
+}
+
+// syncBuffer is a bytes.Buffer safe for one writer goroutine and a polling reader.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+func (s *syncBuffer) String() string { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
+
+// Regression: Ctrl+C / SIGTERM must stop the server even when no input is arriving
+// (the old loop only noticed cancellation after the next line was read).
+func TestServeStopsOnCancelWhileIdle(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "j.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := service.New(st, scrape.NewClient("t", 1), 1, log)
+	defer func() {
+		svc.Close()
+		if err := st.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	srv := &Server{Svc: svc, Actor: "mcp:test", Version: "t"}
+
+	pr, pw := io.Pipe() // an input that stays open and silent, like an idle assistant connection
+	defer pw.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	var out syncBuffer
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ctx, pr, &out) }()
+
+	// It still answers while running...
+	if _, err := io.WriteString(pw, `{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for !strings.Contains(out.String(), `"id":1`) {
+		if time.Now().After(deadline) {
+			t.Fatal("no response to ping")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	// ...and stops promptly, with no error, when asked to, without any further input.
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("a requested stop must not be an error: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Serve did not return after cancellation while idle")
+	}
+}
+
+func TestServeReportsReadErrorsAndEndsOnEOF(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "j.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := service.New(st, scrape.NewClient("t", 1), 1, log)
+	defer func() {
+		svc.Close()
+		if err := st.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	srv := &Server{Svc: svc, Version: "t"}
+	var out bytes.Buffer
+	if err := srv.Serve(context.Background(), strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n"), &out); err != nil {
+		t.Errorf("clean EOF should return nil: %v", err)
+	}
+	if !strings.Contains(out.String(), `"id":1`) {
+		t.Errorf("request before EOF was dropped: %q", out.String())
 	}
 }
