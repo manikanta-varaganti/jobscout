@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Openings Explorer</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Job Openings Explorer</h1>
+    <div class="syncbox">
+      <span class="meta" id="meta"></span>
+      <span class="meta" id="syncmsg" role="status" aria-live="polite"></span>
+      <button id="boardsBtn">Boards</button>
+      <button id="sync" class="primary">⟳ Sync now</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Saved searches"></nav>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <section class="controls">
+    <input id="q" class="search" type="search" autocomplete="off" aria-label="Search jobs"
+      placeholder='e.g.  software OR "full stack" OR "new grad" OR AI OR agent OR "member of technical staff"'>
+    <div class="row">
+      <label class="f">Search in<select id="fScope">
+        <option value="title">Title</option><option value="tcl">Title, company, location</option><option value="all">Everything incl. description</option></select></label>
+      <label class="f">Source<select id="fAts"><option value="">All</option></select></label>
+      <label class="f">Workplace<select id="fWork"><option value="">Any</option></select></label>
+      <label class="f">Posted<select id="fPosted">
+        <option value="">Any time</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label>
+      <label class="f">Status<select id="fStatus"><option value="">Any</option><option>saved</option><option>applied</option><option>interviewing</option><option>offer</option><option>rejected</option></select></label>
+      <label class="f">Location contains<input id="fLoc" type="text" placeholder="e.g. new york"></label>
+      <label class="f">Sort<select id="fSort">
+        <option value="published">Newest posted</option><option value="first_seen">Newest first seen</option>
+        <option value="company">Company A–Z</option><option value="title">Title A–Z</option></select></label>
+      <label class="chk"><input id="fCand" type="checkbox" checked> Software / backend titles only</label>
+      <label class="chk"><input id="fNew" type="checkbox"> New today</label>
+      <label class="chk"><input id="fClosed" type="checkbox"> Include closed</label>
+      <label class="chk"><input id="fGroup" type="checkbox"> Group locations</label>
+      <button id="reset">Reset</button>
+      <button id="saveSearch">Save search…</button>
+      <a id="csv" class="button" href="/api/v1/jobs.csv" download>Export CSV</a>
+    </div>
+    <div class="hint">Matches whole words, so <code>AI</code> will not match “email”; longer words match prefixes (<code>agent</code> finds agentic). Operators: <code>OR</code> <code>AND</code> <code>NOT</code> (uppercase), <code>-word</code>, <code>( )</code>, <code>"exact phrase"</code>, <code>word*</code>. Space means AND. Fields: <code>company:</code> <code>title:</code> <code>loc:</code> <code>dept:</code> <code>ats:</code> <code>desc:</code>. Example: <code>(software OR "full stack") AND NOT senior</code></div>
+    <div class="hint err" id="qerr" hidden></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="tablewrap"><table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+      <div class="pager"><span id="range" class="meta"></span><span><button id="prev">← Prev</button> <button id="next">Next →</button></span></div>
+    </section>
+    <aside class="side">
+      <div class="panel"><h3>Posted per day (30d)</h3><div class="body" id="spark"></div></div>
+      <div class="panel"><h3>Top companies in results</h3><div class="body" id="tops"></div></div>
+    </aside>
+  </div>
+</div>
+<dialog id="boardsDlg" aria-labelledby="boardsTitle">
+  <div class="dlghead"><h2 id="boardsTitle">Job boards</h2><button id="boardsClose" aria-label="Close">✕</button></div>
+  <form id="addBoard" class="row">
+    <label class="f grow">Add a company: paste its careers page or any job link
+      <input id="boardUrl" type="url" required placeholder="https://jobs.lever.co/acme  ·  https://apply.workable.com/acme  ·  …"></label>
+    <button class="primary" type="submit">Add</button>
+  </form>
+  <p class="hint" id="boardMsg" role="status"></p>
+  <div class="tablewrap dlgbody"><table>
+    <thead><tr><th>Company</th><th>Source</th><th>Status</th><th>Jobs</th><th></th></tr></thead>
+    <tbody id="boardsBody"></tbody>
+  </table></div>
+</dialog>
+<script src="app.js"></script>
+</body>
+</html>

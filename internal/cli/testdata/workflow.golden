@@ -1,0 +1,76 @@
+$ jobscout version
+test
+[exit 0]
+
+$ jobscout board add lever acme
+added lever/acme
+[exit 0]
+
+$ jobscout board add-url https://jobs.ashbyhq.com/openai/123
+added ashby/openai
+[exit 0]
+
+$ jobscout board add-url https://jobs.ashbyhq.com/openai
+ashby/openai is already tracked
+[exit 0]
+
+$ jobscout board rename lever acme Acme Rockets
+renamed lever/acme to "Acme Rockets"
+[exit 0]
+
+$ jobscout board disable lever acme
+disabled lever/acme
+[exit 0]
+
+$ jobscout board list --all
+ATS    BOARD   NAME          STATUS    JOBS  LAST SCAN
+ashby  openai  Openai        never     0     
+lever  acme    Acme Rockets  disabled  0     
+[exit 0]
+
+$ jobscout saved add Backend backend OR "full stack" --target
+saved "Backend" (id 2)
+[exit 0]
+
+$ jobscout saved list
+ID  NAME                TOTAL  NEW  QUERY
+2   Backend             0      0    backend OR "full stack"
+1   Software & backend  0      0    
+[exit 0]
+
+$ jobscout search backend --limit 5
+ID  COMPANY  TITLE  LOCATION  POSTED
+
+0 of 0 matching openings
+[exit 0]
+
+$ jobscout board nonsense
+[stderr] usage: jobscout board list [--all] | add ATS SLUG | add-url URL | enable ATS SLUG | disable ATS SLUG | rename ATS SLUG NAME
+[exit 2]
+
+$ jobscout nope
+[stderr] unknown command "nope"
+
+jobscout: local job-postings inventory
+
+Usage: jobscout <command> [arguments]
+       jobscout            (no command: start the dashboard; same as double-clicking it)
+
+Commands:
+  init                                                  create the database and load the starter board list
+  scan                                                  fetch every board now
+  search       [QUERY] [flags]                          search jobs from the terminal
+  serve        [flags]                                  run the web dashboard and API (optionally with scheduled scans)
+  mcp          [--allow-write]                          run the MCP server on stdio for AI agents
+  board        list|add|add-url|enable|disable|rename   manage job boards
+  saved        list|add|rm                              manage saved searches
+  import       FILE...                                  import legacy ats-inventory-*.jsonl snapshots
+  stats                                                 show datastore counts
+  maintenance  [flags]                                  compress old text, prune closed jobs, vacuum
+  backup       DEST.db                                  write a consistent copy of the database
+  version                                               print the version
+
+Environment: JOBSCOUT_HOME, JOBSCOUT_DB, JOBSCOUT_ADDR, JOBSCOUT_USER_AGENT, JOBSCOUT_WORKERS, JOBSCOUT_PER_HOST, JOBSCOUT_DEBUG
+Run `jobscout <command> -h` for command flags.
+[exit 2]
+

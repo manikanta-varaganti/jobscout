@@ -1,0 +1,36 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - bodyclose
+    - misspell
+    - unconvert
+    - gosec
+  settings:
+    errcheck:
+      exclude-functions:
+        # Writes to the terminal / response writers: a failure there has no useful recovery.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*database/sql.Rows).Close
+        - (io.Closer).Close
+    gosec:
+      excludes:
+        - G104 # duplicate of errcheck
+        - G204 # exec of the browser opener with a fixed command
+        - G304 # reading user-specified import files is the point
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [errcheck, gosec, bodyclose]
+formatters:
+  enable:
+    - gofmt

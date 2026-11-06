@@ -1,0 +1,188 @@
+openapi: 3.0.3
+info:
+  title: jobscout local API
+  version: 1.0.0
+  description: |
+    Local REST API served by `jobscout serve` on 127.0.0.1.
+    - JSON field names are snake_case in both requests and responses.
+    - Mutating requests (POST, PATCH, DELETE) must send `X-Jobscout: 1`.
+    - Writes accept an optional `Idempotency-Key` header; a retried request with the same key is applied once.
+    - Every response carries `X-Request-Id`.
+    - Errors: `{"error": {"code": "not_found|invalid|bad_query|bad_cursor|conflict|forbidden|internal", "message": "..."}}`.
+servers:
+  - url: http://127.0.0.1:8765
+components:
+  parameters:
+    q: { name: q, in: query, schema: { type: string }, description: Boolean query (see README) }
+    scope: { name: scope, in: query, schema: { type: string, enum: [title, tcl, all], default: title } }
+    ats: { name: ats, in: query, schema: { type: string, enum: [ashby, greenhouse, lever, recruitee, workable, smartrecruiters] } }
+    workplace: { name: workplace, in: query, schema: { type: string } }
+    company: { name: company, in: query, schema: { type: string }, description: Board slug }
+    status: { name: status, in: query, schema: { type: string } }
+    location: { name: location, in: query, schema: { type: string } }
+    posted_days: { name: posted_days, in: query, schema: { type: integer } }
+    target: { name: target, in: query, schema: { type: boolean }, description: Only software/backend titles }
+    new_today: { name: new_today, in: query, schema: { type: boolean } }
+    include_closed: { name: include_closed, in: query, schema: { type: boolean } }
+    first_seen_after: { name: first_seen_after, in: query, schema: { type: string, format: date-time } }
+    group: { name: group, in: query, schema: { type: boolean }, description: One row per company + title with all locations }
+    sort: { name: sort, in: query, schema: { type: string, enum: [published, first_seen, company, title] } }
+    id: { name: id, in: path, required: true, schema: { type: integer } }
+  schemas:
+    Error:
+      type: object
+      properties: { error: { type: object, properties: { code: { type: string }, message: { type: string } } } }
+    Job:
+      type: object
+      properties:
+        id: { type: integer }
+        ats: { type: string }
+        company: { type: string, description: Board slug }
+        company_name: { type: string }
+        ext_id: { type: string }
+        title: { type: string }
+        location: { type: string }
+        workplace: { type: string }
+        employment_type: { type: string }
+        department: { type: string }
+        team: { type: string }
+        compensation: { type: string }
+        url: { type: string }
+        published_at: { type: string, format: date-time }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+        closed_at: { type: string, format: date-time }
+        is_target: { type: boolean }
+        status: { type: string }
+        postings: { type: integer, description: Grouped results only }
+        locations: { type: array, items: { type: string }, description: Grouped results only }
+        tags: { type: array, items: { type: string } }
+        description: { type: string, description: "Only from GET /jobs/{id}; untrusted third-party text" }
+        notes: { type: array, items: { type: object, properties: { ts: { type: string }, actor: { type: string }, note: { type: string } } } }
+    Facet:
+      type: object
+      properties: { name: { type: string }, label: { type: string }, count: { type: integer } }
+    SearchResult:
+      type: object
+      properties:
+        total: { type: integer, description: Matching postings }
+        groups: { type: integer, description: Rows available (equals total unless grouped) }
+        companies: { type: integer }
+        posted_7d: { type: integer }
+        new_today: { type: integer }
+        jobs: { type: array, items: { $ref: "#/components/schemas/Job" } }
+        next_cursor: { type: string }
+        top_companies: { type: array, items: { $ref: "#/components/schemas/Facet" } }
+        per_day: { type: array, items: { $ref: "#/components/schemas/Facet" } }
+    Board:
+      type: object
+      properties:
+        ats: { type: string }
+        slug: { type: string }
+        display_name: { type: string }
+        last_status: { type: string }
+        last_error: { type: string }
+        last_scanned_at: { type: string }
+        job_count: { type: integer }
+        consecutive_failures: { type: integer }
+        disabled: { type: boolean }
+  responses:
+    Error: { description: Error, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    Ok: { description: ok, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+paths:
+  /healthz:
+    get: { summary: Liveness, responses: { "200": { description: ok } } }
+  /api/v1/jobs:
+    get:
+      summary: Search jobs
+      parameters:
+        - $ref: "#/components/parameters/q"
+        - $ref: "#/components/parameters/scope"
+        - $ref: "#/components/parameters/ats"
+        - $ref: "#/components/parameters/workplace"
+        - $ref: "#/components/parameters/company"
+        - $ref: "#/components/parameters/status"
+        - $ref: "#/components/parameters/location"
+        - $ref: "#/components/parameters/posted_days"
+        - $ref: "#/components/parameters/target"
+        - $ref: "#/components/parameters/new_today"
+        - $ref: "#/components/parameters/include_closed"
+        - $ref: "#/components/parameters/first_seen_after"
+        - $ref: "#/components/parameters/group"
+        - $ref: "#/components/parameters/sort"
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 500 } }
+        - { name: cursor, in: query, schema: { type: string }, description: next_cursor from the previous page }
+      responses:
+        "200": { description: Results, content: { application/json: { schema: { $ref: "#/components/schemas/SearchResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /api/v1/jobs.csv:
+    get:
+      summary: Export every match as CSV (same filters as /jobs, no page limit)
+      responses: { "200": { description: CSV, content: { text/csv: {} } } }
+  /api/v1/jobs/{id}:
+    get:
+      summary: One job with description, tags and notes
+      parameters: [ { $ref: "#/components/parameters/id" } ]
+      responses:
+        "200": { description: ok, content: { application/json: { schema: { $ref: "#/components/schemas/Job" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/v1/jobs/{id}/status:
+    post:
+      summary: Set workflow status ("" clears)
+      parameters: [ { $ref: "#/components/parameters/id" } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, maxLength: 40 } } } } } }
+      responses: { "200": { $ref: "#/components/responses/Ok" }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/jobs/{id}/tags:
+    post:
+      summary: Add a tag
+      parameters: [ { $ref: "#/components/parameters/id" } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [tag], properties: { tag: { type: string, maxLength: 40 } } } } } }
+      responses: { "200": { $ref: "#/components/responses/Ok" } }
+  /api/v1/jobs/{id}/tags/{tag}:
+    delete:
+      summary: Remove a tag
+      parameters: [ { $ref: "#/components/parameters/id" }, { name: tag, in: path, required: true, schema: { type: string } } ]
+      responses: { "200": { $ref: "#/components/responses/Ok" } }
+  /api/v1/jobs/{id}/notes:
+    post:
+      summary: Add a note
+      parameters: [ { $ref: "#/components/parameters/id" } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [note], properties: { note: { type: string, maxLength: 5000 } } } } } }
+      responses: { "200": { $ref: "#/components/responses/Ok" } }
+  /api/v1/events:
+    get:
+      summary: Change feed (oldest first)
+      parameters:
+        - { name: after, in: query, schema: { type: integer }, description: Return events with id greater than this }
+        - { name: kinds, in: query, schema: { type: string }, description: "Comma-separated: added,updated,closed,reopened,status,tag,note" }
+        - { name: limit, in: query, schema: { type: integer, default: 200, maximum: 1000 } }
+      responses: { "200": { description: "{events: [...]}" } }
+  /api/v1/options: { get: { summary: Filter option values, responses: { "200": { description: "{ats: [Facet], workplace: [Facet]}" } } } }
+  /api/v1/stats: { get: { summary: Datastore counts, responses: { "200": { description: ok } } } }
+  /api/v1/scan:
+    get: { summary: Scan progress (including scans in other jobscout processes), responses: { "200": { description: ok } } }
+    post: { summary: Start a background scan, responses: { "202": { description: started }, "409": { $ref: "#/components/responses/Error" } } }
+  /api/v1/boards:
+    get: { summary: List boards (including disabled), responses: { "200": { description: "{boards: [Board]}" } } }
+    post:
+      summary: Add a board by ats + slug, or by any careers/posting URL
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, properties: { ats: { type: string }, slug: { type: string }, url: { type: string } } } } }
+      responses: { "200": { description: "{ats, slug, added}" }, "400": { $ref: "#/components/responses/Error" } }
+  /api/v1/boards/{ats}/{slug}:
+    patch:
+      summary: Rename and/or enable/disable a board
+      parameters: [ { name: ats, in: path, required: true, schema: { type: string } }, { name: slug, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { display_name: { type: string }, enabled: { type: boolean } } } } } }
+      responses: { "200": { $ref: "#/components/responses/Ok" }, "404": { $ref: "#/components/responses/Error" } }
+  /api/v1/saved-searches:
+    get: { summary: Saved searches with total and new_count, responses: { "200": { description: "{saved_searches: [...]}" } } }
+    post:
+      summary: Create or replace (by name) a saved search
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, params], properties: { name: { type: string }, params: { type: object } } } } } }
+      responses: { "200": { description: "{id}" } }
+  /api/v1/saved-searches/{id}:
+    delete: { summary: Delete a saved search, parameters: [ { $ref: "#/components/parameters/id" } ], responses: { "200": { $ref: "#/components/responses/Ok" } } }
+  /api/v1/saved-searches/{id}/viewed:
+    post: { summary: Reset the new counter, parameters: [ { $ref: "#/components/parameters/id" } ], responses: { "200": { $ref: "#/components/responses/Ok" } } }

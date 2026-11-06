@@ -1,0 +1,22 @@
+# build output
+/bin/
+/dist/
+coverage.out
+coverage.html
+
+# local data must never be committed
+*.db
+*.db-wal
+*.db-shm
+*.db.bak
+*.jsonl
+*.jsonl.gz
+.env
+.env.*
+!.env.example
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

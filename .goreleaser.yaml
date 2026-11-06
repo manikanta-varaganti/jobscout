@@ -1,0 +1,32 @@
+version: 2
+project_name: jobscout
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: jobscout
+    main: ./cmd/jobscout
+    binary: jobscout
+    env: [CGO_ENABLED=0]   # pure-Go SQLite: no C toolchain needed to cross-compile
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{.Version}}"]
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+    files: [README.md, LICENSE, CHANGELOG.md]
+checksum:
+  name_template: checksums.txt
+changelog:
+  disable: true   # release notes come from CHANGELOG.md (see .github/workflows/release.yml)
+release:
+  github:
+    owner: manikanta-varaganti
+    name: jobscout
+  draft: false
+  prerelease: auto
