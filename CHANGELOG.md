@@ -5,6 +5,18 @@ and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-06
+
+### Fixed
+- `jobscout mcp` now stops promptly on Ctrl+C or `kill` even when no assistant is sending messages. Before, it ignored
+  the stop request until the next message arrived and had to be force-killed. A requested stop no longer prints an
+  error. (AI assistants such as Claude were not affected, because they close the connection when they exit.)
+
+### Changed
+- Refreshed the dashboard screenshot in the documentation (taken after a real sync).
+- Updated the GitHub Actions used to build and release jobscout (`checkout`, `setup-go`, `golangci-lint-action`,
+  `goreleaser-action`). No change to the program itself.
+
 ## [0.1.0] - 2026-11-06
 
 First public release.
@@ -43,5 +55,6 @@ First public release.
 - SmartRecruiters descriptions are fetched gradually (up to 50 new jobs per company per sync).
 - Ashby doesn't publish company names, so those companies show a readable form of their web address until renamed.
 
-[Unreleased]: https://github.com/manikanta-varaganti/jobscout/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/manikanta-varaganti/jobscout/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/manikanta-varaganti/jobscout/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/manikanta-varaganti/jobscout/releases/tag/v0.1.0
