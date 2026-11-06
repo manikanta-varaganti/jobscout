@@ -22,8 +22,10 @@ archives:
     files: [README.md, LICENSE, CHANGELOG.md]
 checksum:
   name_template: checksums.txt
+# Release notes come from CHANGELOG.md: the release workflow passes them with --release-notes, which replaces
+# the generated changelog. (Don't set changelog.disable: that also drops --release-notes.)
 changelog:
-  disable: true   # release notes come from CHANGELOG.md (see .github/workflows/release.yml)
+  use: git
 release:
   github:
     owner: manikanta-varaganti
